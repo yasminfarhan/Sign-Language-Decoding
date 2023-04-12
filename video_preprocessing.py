@@ -3,6 +3,9 @@ import numpy as np
 import pandas as pd 
 import json
 import os
+import cv2 as cv
+from matplotlib import pyplot as plt
+import random
 
 data_dir = './data/' #define data directory
 video_dir = './data/videos/' #define videos directory
@@ -43,8 +46,47 @@ def get_json_as_df():
         json_df_full = pd.concat([json_df_full, gloss_df], ignore_index=True) 
 
     return json_df_full
+
+# function which extracts one random frame from a video, and saves to current dir as .jpg
+def save_frame_jpg(video_id):
+    vid_file_path = f'{video_dir}/{video_id}.mp4'
+
+    cap = cv.VideoCapture(vid_file_path)
+
+    totalFrames = cap.get(cv.CAP_PROP_FRAME_COUNT)
+    frame_number = random.randint(0, totalFrames)
+
+    cap.set(cv.CAP_PROP_POS_FRAMES, frame_number-1)
+    res, frame = cap.read()
+
+    if res:
+        #Set grayscale colorspace for the frame. 
+        gray = cv.cvtColor(frame, cv.COLOR_BGR2GRAY)
+
+        #Cut the video extension to have the name of the video
+        my_video_name = video_id.split(".")[0]
+
+        # #Display the resulting frame
+        # cv.imshow(my_video_name+' frame '+ str(frame_number),gray)
+
+        # #Set waitKey - displays image for this duration in ms
+        # cv.waitKey(2000)
+
+        #Store this frame to an image
+        cv.imwrite(my_video_name+'_frame_'+str(frame_number)+'.jpg',gray)
+
+        # When everything done, release the capture
+        cap.release()
+        cv.destroyAllWindows()
+    else:
+        print("ERROR: save_frame_jpg() - failed to retrieve frame from video with ID {}".format(video_id))
+
 def main():
 
     gloss_inst_df = get_json_as_df()
+
+    # demonstrating use of save_frame_jpg function
+    eg_vid_id = gloss_inst_df.iloc[0]['video_id']
+    save_frame_jpg(eg_vid_id)
 
 main()
