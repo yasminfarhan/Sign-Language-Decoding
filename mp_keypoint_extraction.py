@@ -71,16 +71,31 @@ def extract_vid_keypoints(video_id, holistic=True, display=False):
         cap.release()
         cv.destroyAllWindows()    
 
-    # Save keypoints_list for the current video_id
-    if holistic:
-        path_suffix = '_holistic'
-    else:
-        path_suffix = ''
+    return frames_keypoints_lst, results
 
-    keypoints_file_path = f"{keypoints_dir}/{video_id}{path_suffix}.npy"
-    np.save(keypoints_file_path, frames_keypoints_lst)
+# iterates through available videos for each kind of split and saves as npy array
+def save_vids_keypoints(gloss_inst_df, holistic=True):
+    split_lst = gloss_inst_df['split'].unique().tolist()
+    num_vids = 3 #TODO - change later on - for testing purposes only
+    mp_dir = 'holistic' if holistic else 'pose'
 
-    return results
+    for split in split_lst:
+        split_df = gloss_inst_df[gloss_inst_df['split'] == split].sample(n=num_vids).reset_index()
+        split_file_path = f"{keypoints_dir}{mp_dir}/{split}/"
+        os.makedirs(split_file_path, exist_ok=True)
+
+        for i in range(num_vids):
+            vid_info = split_df.loc[i, ['video_id', 'split', 'gloss']]
+            vid_id = vid_info['video_id']
+            gloss = vid_info['gloss']
+
+            # print(vid_id, vid_split, gloss)
+
+            frames_keypoints_lst, _ = extract_vid_keypoints(vid_id)
+
+            # save keypoints for this video
+            vid_file_path = f"{split_file_path}{vid_id}_{gloss}.npy"
+            np.save(vid_file_path, np.array(frames_keypoints_lst))
 
 def draw_styled_landmarks(image, results):
     # Draw face connections
