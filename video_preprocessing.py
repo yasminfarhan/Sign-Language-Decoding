@@ -1,25 +1,18 @@
-## Import libraries
+# Import libraries
 import numpy as np
 import pandas as pd 
 import json
 import os
 import cv2 as cv
-import mediapipe as mp
 from skimage import morphology
 from matplotlib import pyplot as plt
 import random
+import mp_keypoint_extraction
 
 data_dir = './data/' #define data directory
 video_dir = './data/videos/' #define videos directory
 skeletonized_image_dir = './data/skeletonized_image_dir/' #define skeletonized videos directory
 wlas_df = pd.read_json(data_dir + 'WLASL_v0.3.json') #returns df with cols ['gloss', 'instances'] - i.e. all json instances for a gloss, e.g. 'book'
-
-# Initialize MediaPipe Pose
-mp_pose = mp.solutions.pose
-pose = mp_pose.Pose()
-
-keypoints_dir = './data/keypoints/'  # define keypoints directory
-os.makedirs(keypoints_dir, exist_ok=True)
 
 # function to return list of included video ids according to what's been downloaded
 # for a particular gloss' instance e.g. return all video ids for 'book' gloss
@@ -130,39 +123,6 @@ def skeletonize_video_frames(video_id):
     cap.release()
     cv.destroyAllWindows()
 
-# function will extract keypoints from the video frames using MediaPipe's pose estimation and save them in a keypoints directory
-def extract_keypoints(video_id):
-    vid_file_path = f'{video_dir}/{video_id}.mp4'
-
-    cap = cv.VideoCapture(vid_file_path)
-
-    keypoints_list = []
-
-    while cap.isOpened():
-        ret, frame = cap.read()
-        if not ret:
-            break
-
-        # Convert the frame to RGB
-        frame_rgb = cv.cvtColor(frame, cv.COLOR_BGR2RGB)
-
-        # Process the frame and extract keypoints
-        result = pose.process(frame_rgb)
-
-        # Save keypoints as input features
-        if result.pose_landmarks:
-            keypoints = []
-            for landmark in result.pose_landmarks.landmark:
-                keypoints.extend([landmark.x, landmark.y, landmark.z, landmark.visibility])
-
-            keypoints_list.append(keypoints)
-
-    cap.release()
-
-    # Save keypoints_list for the current video_id
-    keypoints_file_path = f"{keypoints_dir}/{video_id}.npy"
-    np.save(keypoints_file_path, keypoints_list)
-
 def main():
 
     gloss_inst_df = get_json_as_df()
@@ -171,6 +131,7 @@ def main():
     eg_vid_id = gloss_inst_df.iloc[0]['video_id']
     #save_frame_jpg(eg_vid_id)
     #skeletonize_video_frames(eg_vid_id)
-    extract_keypoints(eg_vid_id)
+    # mp_keypoint_extraction.extract_keypoints(eg_vid_id)
+    mp_keypoint_extraction.extract_vid_keypoints(eg_vid_id)    
 
 main()
