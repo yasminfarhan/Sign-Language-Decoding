@@ -126,12 +126,10 @@ def skeletonize_video_frames(video_id):
 def main():
 
     gloss_inst_df = get_json_as_df()
+    gloss_inst_df.to_pickle("gloss_inst_df.pkl")
 
-    # demonstrating use of save_frame_jpg function
-    eg_vid_id = gloss_inst_df.iloc[0]['video_id']
-    #save_frame_jpg(eg_vid_id)
-    #skeletonize_video_frames(eg_vid_id)
-    # mp_keypoint_extraction.extract_keypoints(eg_vid_id)
-    mp_keypoint_extraction.extract_vid_keypoints(eg_vid_id)    
+    gloss_inst_df = pd.read_pickle("gloss_inst_df.pkl")
+
+    mp_keypoint_extraction.save_vids_keypoints(gloss_inst_df)
 
 main()
