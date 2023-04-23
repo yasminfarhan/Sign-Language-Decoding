@@ -75,27 +75,38 @@ def extract_vid_keypoints(video_id, holistic=True, display=False):
 
 # iterates through available videos for each kind of split and saves as npy array
 def save_vids_keypoints(gloss_inst_df, holistic=True):
-    split_lst = gloss_inst_df['split'].unique().tolist()
-    num_vids = 3 #TODO - change later on - for testing purposes only
+    gloss_subset_num = 20 # - the number of glosses we are testing - get all train, val, test data for them - TODO - change to 2000 when testing all glosses
     mp_dir = 'holistic' if holistic else 'pose'
+    gloss_groups = gloss_inst_df.groupby('gloss') #group rows in json df with all instances by gloss
+    gloss_lst = []
 
-    for split in split_lst:
-        split_df = gloss_inst_df[gloss_inst_df['split'] == split].sample(n=num_vids).reset_index()
-        split_file_path = f"{keypoints_dir}{mp_dir}/{split}/"
-        os.makedirs(split_file_path, exist_ok=True)
+    cnt = 0
+    for gloss, gloss_df in gloss_groups:
 
-        for i in range(num_vids):
-            vid_info = split_df.loc[i, ['video_id', 'split', 'gloss']]
-            vid_id = vid_info['video_id']
-            gloss = vid_info['gloss']
+        if cnt == gloss_subset_num:
+            break
+        else:
+            cnt += 1
+            gloss_lst.append(gloss)
 
-            # print(vid_id, vid_split, gloss)
+        split_groups = gloss_df.groupby('split') #group rows in the df for this gloss by type of split; not all glosses have every type
 
-            frames_keypoints_lst, _ = extract_vid_keypoints(vid_id)
+        for split, split_df in split_groups:
+            split_df = split_df.reset_index(drop=True)
+            split_file_path = f"{keypoints_dir}{mp_dir}/{split}/"
+            os.makedirs(split_file_path, exist_ok=True)
 
-            # save keypoints for this video
-            vid_file_path = f"{split_file_path}{vid_id}_{gloss}.npy"
-            np.save(vid_file_path, np.array(frames_keypoints_lst))
+            print(gloss, split, split_df.index, split_df.shape[0])
+            for i in range(split_df.shape[0]):
+                vid_info = split_df.loc[i, ['video_id']]
+                vid_id = vid_info['video_id']
+
+                frames_keypoints_lst, _ = extract_vid_keypoints(vid_id)
+
+                # save keypoints for this video
+                vid_file_path = f"{split_file_path}{vid_id}_{gloss}.npy"
+                np.save(vid_file_path, np.array(frames_keypoints_lst))
+    np.save("glosses_to_test.npy", np.array(gloss_lst)) #save the glosses to a numpy array so that training.py can read them
 
 def draw_styled_landmarks(image, results):
     # Draw face connections
