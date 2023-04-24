@@ -81,4 +81,5 @@ def main():
     print(model.summary())
 
     # model.save('categorical_lstm.h5')
-main()
+if __name__=="__main__":
+    main()      

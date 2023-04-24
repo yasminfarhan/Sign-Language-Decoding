@@ -125,11 +125,14 @@ def skeletonize_video_frames(video_id):
 
 def main():
 
-    gloss_inst_df = get_json_as_df()
-    gloss_inst_df.to_pickle("gloss_inst_df.pkl")
+    print("In video_preprocessing main()")
 
-    gloss_inst_df = pd.read_pickle("gloss_inst_df.pkl")
+    # gloss_inst_df = get_json_as_df()
+    # gloss_inst_df.to_pickle("gloss_inst_df.pkl")
 
-    mp_keypoint_extraction.save_vids_keypoints(gloss_inst_df)
+    # gloss_inst_df = pd.read_pickle("gloss_inst_df.pkl")
 
-main()
+    # mp_keypoint_extraction.save_vids_keypoints(gloss_inst_df)
+
+if __name__=="__main__":
+    main()

@@ -21,20 +21,24 @@ def mediapipe_detection(image, model):
     image = cv.cvtColor(image, cv.COLOR_RGB2BGR) # COLOR COVERSION RGB 2 BGR
     return image, results
     
-def extract_frame_keypoints(frame_results, holistic=True):
+def extract_frame_keypoints(frame_results, holistic=True, gcn_input=False):
     pose = np.array([[res.x, res.y, res.z, res.visibility] for res in frame_results.pose_landmarks.landmark]).flatten() if frame_results.pose_landmarks else np.zeros(132)
 
     if holistic:
-        face = np.array([[res.x, res.y, res.z] for res in frame_results.face_landmarks.landmark]).flatten() if frame_results.face_landmarks else np.zeros(1404)
-        lh = np.array([[res.x, res.y, res.z] for res in frame_results.left_hand_landmarks.landmark]).flatten() if frame_results.left_hand_landmarks else np.zeros(21*3)
-        rh = np.array([[res.x, res.y, res.z] for res in frame_results.right_hand_landmarks.landmark]).flatten() if frame_results.right_hand_landmarks else np.zeros(21*3)
-
+        if gcn_input: #appending face, lh, rh input with 0 to retain pose visibility value
+            face = np.array([[res.x, res.y, res.z, 0] for res in frame_results.face_landmarks.landmark]).flatten() if frame_results.face_landmarks else np.zeros(468*4)
+            lh = np.array([[res.x, res.y, res.z, 0] for res in frame_results.left_hand_landmarks.landmark]).flatten() if frame_results.left_hand_landmarks else np.zeros(21*4)
+            rh = np.array([[res.x, res.y, res.z, 0] for res in frame_results.right_hand_landmarks.landmark]).flatten() if frame_results.right_hand_landmarks else np.zeros(21*4)
+        else:
+            face = np.array([[res.x, res.y, res.z] for res in frame_results.face_landmarks.landmark]).flatten() if frame_results.face_landmarks else np.zeros(1404)
+            lh = np.array([[res.x, res.y, res.z] for res in frame_results.left_hand_landmarks.landmark]).flatten() if frame_results.left_hand_landmarks else np.zeros(21*3)
+            rh = np.array([[res.x, res.y, res.z] for res in frame_results.right_hand_landmarks.landmark]).flatten() if frame_results.right_hand_landmarks else np.zeros(21*3)
         return np.concatenate([pose, face, lh, rh])
     else:
         return pose
 
 # extracts keypoints for every frame in the video and saves to .npy array file of shape (num_frames, 1662)
-def extract_vid_keypoints(video_id, holistic=True, display=False):
+def extract_vid_keypoints(video_id, holistic=True, display=False, gcn_input=False):
 
     # Set mediapipe model 
     vid_file_path = f'{video_dir}/{video_id}.mp4'
@@ -53,7 +57,7 @@ def extract_vid_keypoints(video_id, holistic=True, display=False):
             # Make detections
             image, results = mediapipe_detection(frame, holistic)
 
-            frame_keypoints = extract_frame_keypoints(results)
+            frame_keypoints = extract_frame_keypoints(results, gcn_input=gcn_input)
 
             if display:
                 # Draw landmarks
@@ -96,7 +100,7 @@ def save_vids_keypoints(gloss_inst_df, holistic=True):
             split_file_path = f"{keypoints_dir}{mp_dir}/{split}/"
             os.makedirs(split_file_path, exist_ok=True)
 
-            print(gloss, split, split_df.index, split_df.shape[0])
+            print(f"Saving keypoint npys for gloss {gloss}, split {split}")
             for i in range(split_df.shape[0]):
                 vid_info = split_df.loc[i, ['video_id']]
                 vid_id = vid_info['video_id']
