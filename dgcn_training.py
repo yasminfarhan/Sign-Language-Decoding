@@ -107,7 +107,9 @@ def validation_metrics (model, valid_dl):
 def main():    
     holistic = True
     
-    glosses_to_test = np.load("./glosses_to_test_gcn.npy")
+    glosses_to_test = np.load("glosses_to_test.npy")
+    print(glosses_to_test)
+
     gloss_label_map = {label: num for num, label in enumerate(glosses_to_test)}
     num_classes = len(glosses_to_test)
 

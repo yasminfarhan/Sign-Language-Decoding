@@ -47,8 +47,9 @@ class VideoDataset(Dataset):
             frames_tr.append(frame)
         if len(frames_tr)>0:
             frames_tr = torch.stack(frames_tr)
-        return frames_tr, F.one_hot(torch.tensor(label), len(self.label_map.keys()))
-
+        # return frames_tr, F.one_hot(torch.tensor(label), len(self.label_map.keys()))
+        return frames_tr, torch.tensor(label)
+    
 # function to return list of included video ids according to what's been downloaded
 # for a particular gloss' instance e.g. return all video ids for 'book' gloss
 def incl_video_ids(json_list):
@@ -195,32 +196,6 @@ def get_split_info_dict(gloss_lst, gloss_df):
     return split_map
 
 def main():
-    random.seed(10)
-    print("In video_preprocessing main()")
-
-    # determining the glosses we're testing, and making sure we have the right info about them
-    num_glosses_to_test = 5 #the number of glosses/classes we'll be testing - there are a total of 2000
-    gloss_inst_df = get_gloss_inst_df()
-    glosses_to_test = random.sample(gloss_inst_df['gloss'].unique().tolist(), num_glosses_to_test)
-    gloss_label_map = {label:num for num, label in enumerate(glosses_to_test)}
-    split_dict = get_split_info_dict(glosses_to_test, gloss_inst_df)
-
-    # generating the input to our models from the relevant videos - keypoints & dataframes
-    extract_video_frames(split_dict["train"]["video_ids"])
-    mp_keypoint_extraction.save_vids_keypoints(gloss_inst_df, glosses_to_test)
-
-    h, w =224, 224
-    mean = [0.485, 0.456, 0.406]
-    std = [0.229, 0.224, 0.225]
-
-    train_transformer = transforms.Compose([
-                transforms.Resize((h,w)),
-                transforms.RandomHorizontalFlip(p=0.5),  
-                transforms.RandomAffine(degrees=0, translate=(0.1,0.1)),    
-                transforms.ToTensor(),
-                transforms.Normalize(mean, std),
-                ]) 
-    
-    train_ds = VideoDataset(ids=split_dict["train"]["video_ids"], labels=split_dict["train"]["labels"], transform=train_transformer, label_map=gloss_label_map)
+    pass
 if __name__=="__main__":
     main()

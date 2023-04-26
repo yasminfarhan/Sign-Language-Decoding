@@ -35,22 +35,23 @@ def generate_split_data(split, label_map, holistic=True, kp=True): #kp == True i
     
     # iterate through all available video npy arrays for this particular split
     for npy_name in os.listdir(split_dir):
-        if npy_name != '.DS_Store':
+        if npy_name.endswith('.npy'):
             f = os.path.join(split_dir, npy_name)
             
-            if kp:
-                # sample 20 consecutive frames from this array, since vids have diff lengths
-                vid_npy = np.load(f)[:,:input_size]
-
-                vid_npy = pd.DataFrame(vid_npy).sample(frames_to_sample).sort_index().reset_index(drop=True)
-            else:
-                vid_npy = pd.DataFrame(np.load(f))
-
             # extract gloss from the name of the .npy file
             vid_gloss = npy_name.split('_')[1].split('.')[0]
 
-            split_vids.append(vid_npy)
-            y_labels.append(label_map[vid_gloss])
+            if vid_gloss in label_map.keys(): #make sure we're only getting the data for relevant glosses
+                if kp:
+                    # sample 20 consecutive frames from this array, since vids have diff lengths
+                    vid_npy = np.load(f)[:,:input_size]
+
+                    vid_npy = pd.DataFrame(vid_npy).sample(frames_to_sample).sort_index().reset_index(drop=True)
+                else:
+                    vid_npy = pd.DataFrame(np.load(f))
+
+                split_vids.append(vid_npy)
+                y_labels.append(label_map[vid_gloss])
 
     X = np.array(split_vids)
     y = np.array(y_labels)
@@ -92,7 +93,7 @@ def main():
 
     # Evaluate the model on the test data using `evaluate`
     print("Evaluate on test data")
-    results = model.evaluate(X_test, y_test_ctg, batch_size=128)
+    results = model.evaluate(X_val, y_val_ctg, batch_size=128)
     print("test loss, test acc:", results)
 
     # Generate predictions (probabilities -- the output of the last layer)
