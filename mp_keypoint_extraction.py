@@ -78,8 +78,7 @@ def extract_vid_keypoints(video_id, holistic=True, display=False, gcn_input=Fals
     return frames_keypoints_lst, results
 
 # iterates through available videos for each kind of split and saves as npy array
-def save_vids_keypoints(gloss_inst_df, holistic=True):
-    gloss_subset_num = 20 # - the number of glosses we are testing - get all train, val, test data for them - TODO - change to 2000 when testing all glosses
+def save_vids_keypoints(gloss_inst_df, holistic=True, num_glosses=2000):
     mp_dir = 'holistic' if holistic else 'pose'
     gloss_groups = gloss_inst_df.groupby('gloss') #group rows in json df with all instances by gloss
     gloss_lst = []
@@ -87,7 +86,7 @@ def save_vids_keypoints(gloss_inst_df, holistic=True):
     cnt = 0
     for gloss, gloss_df in gloss_groups:
 
-        if cnt == gloss_subset_num:
+        if cnt == num_glosses:
             break
         else:
             cnt += 1
@@ -112,6 +111,7 @@ def save_vids_keypoints(gloss_inst_df, holistic=True):
                 np.save(vid_file_path, np.array(frames_keypoints_lst))
     np.save("glosses_to_test.npy", np.array(gloss_lst)) #save the glosses to a numpy array so that training.py can read them
 
+# TODO - link-to-source
 def draw_styled_landmarks(image, results):
     # Draw face connections
     mp_drawing.draw_landmarks(image, results.face_landmarks, mp_holistic.FACEMESH_TESSELATION, 
