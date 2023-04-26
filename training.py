@@ -19,38 +19,44 @@ from tensorflow.keras.layers import LSTM, Dense
 from tensorflow.keras.callbacks import TensorBoard
 from tensorflow.keras.utils import to_categorical
 
+gcn_input_dir = './data/gcn_input/'  # define gcn input directory
 keypoints_dir = './data/keypoints/'  # define keypoints directory
 frames_to_sample_per_vid = 20 #specify number of frames we want to sample from each video
 holistic = True
 input_dim = 1662 if holistic else 132
 
-def generate_split_data(split, label_map, holistic=True):
+def generate_split_data(split, label_map, holistic=True, kp=True): #kp == True if we're generating training data from keypoints
+    input_size = 1662 if holistic else 132
     mp_dir = 'holistic' #if holistic else 'pose' # figuring out which keypoint directory to look in
     y_labels = [] # ground truth labels
     split_vids = [] # list of all (num_frames,num_keypoints) video npy arrays
-    split_dir = f"{keypoints_dir}{mp_dir}/{split}/"
-
+    frames_to_sample = 20 #specify number of frames we want to sample from each video
+    split_dir = f"{keypoints_dir}{mp_dir}/{split}/" if kp else f"{gcn_input_dir}{mp_dir}/{split}/node_ft_mats"
+    
     # iterate through all available video npy arrays for this particular split
     for npy_name in os.listdir(split_dir):
         if npy_name != '.DS_Store':
             f = os.path.join(split_dir, npy_name)
             
-            # sample frames_to_sample_per_vid consecutive frames from this array, since vids have diff lengths
-            vid_kp_npy = np.load(f)[:,:input_dim]
+            if kp:
+                # sample 20 consecutive frames from this array, since vids have diff lengths
+                vid_npy = np.load(f)[:,:input_size]
 
-            vid_kp = pd.DataFrame(vid_kp_npy).sample(frames_to_sample_per_vid).sort_index().reset_index(drop=True) 
+                vid_npy = pd.DataFrame(vid_npy).sample(frames_to_sample).sort_index().reset_index(drop=True)
+            else:
+                vid_npy = pd.DataFrame(np.load(f))
 
             # extract gloss from the name of the .npy file
             vid_gloss = npy_name.split('_')[1].split('.')[0]
 
-            split_vids.append(vid_kp)
+            split_vids.append(vid_npy)
             y_labels.append(label_map[vid_gloss])
 
     X = np.array(split_vids)
     y = np.array(y_labels)
 
-    # return torch.tensor(X), torch.tensor(y).type(torch.LongTensor) #for pytorch models
-    return X, y #- TODO: uncomment this for pytorch training
+    # return torch.tensor(X), torch.tensor(y).type(torch.LongTensor)
+    return X, y
     
 def LSTM_k(num_classes):
 ### Keras LSTM model training
