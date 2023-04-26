@@ -15,6 +15,7 @@ from torchvision.transforms.functional import to_pil_image
 import matplotlib.pylab as plt
 from torch import optim
 from torch.optim.lr_scheduler import CosineAnnealingLR, ReduceLROnPlateau
+import torch.utils.data as data
 
 # my files
 import video_preprocessing
@@ -22,12 +23,14 @@ import gcn_input_gen
 import training
 import mp_keypoint_extraction
 import models as my_models
+import dgcn_training
 
 models_dir = "./models/"
 os.makedirs(models_dir, exist_ok=True)
 
 def main():
     random.seed(10)
+    holistic = True
     print("In MAIN main()")
 
     # determining the glosses we're testing, and making sure we have the right info about them
@@ -48,34 +51,23 @@ def main():
 
     mp_keypoint_extraction.save_vids_keypoints(gloss_inst_df, glosses_to_test)
 
+    ### ResNetRNN parameter initialization, data preparation
     # training resnet model
     train_ds = video_preprocessing.VideoDataset(ids=split_dict["train"]["video_ids"], labels=split_dict["train"]["labels"], transform=my_models.get_transformer("train"), label_map=gloss_label_map)
     test_ds = video_preprocessing.VideoDataset(ids=split_dict["val"]["video_ids"], labels=split_dict["val"]["labels"], transform=my_models.get_transformer("test"), label_map=gloss_label_map)
 
     batch_size = 4
-    model_type = "rnn"
-
-    if model_type == "rnn":
-        train_dl = DataLoader(train_ds, batch_size= batch_size,
-                            shuffle=True, collate_fn= my_models.collate_fn_rnn)
-        test_dl = DataLoader(test_ds, batch_size= 2*batch_size,
-                            shuffle=False, collate_fn= my_models.collate_fn_rnn)  
-        params_model={
-            "num_classes": num_glosses_to_test,
-            "dr_rate": 0.1,
-            "pretrained" : True,
-            "rnn_num_layers": 1,
-            "rnn_hidden_size": 100,}
-        model = my_models.Resnt18Rnn(params_model).float()
-
-    else:
-        train_dl = DataLoader(train_ds, batch_size= batch_size, 
-                            shuffle=True, collate_fn= my_models.collate_fn_r3d_18)
-        test_dl = DataLoader(test_ds, batch_size= 2*batch_size, 
-                            shuffle=False, collate_fn= my_models.collate_fn_r3d_18) 
-        model = torch_models.video.r3d_18(pretrained=True, progress=False).float()
-        num_features = model.fc.in_features
-        model.fc = nn.Linear(num_features, num_glosses_to_test)
+    train_dl = DataLoader(train_ds, batch_size= batch_size,
+                        shuffle=True, collate_fn= my_models.collate_fn_rnn)
+    test_dl = DataLoader(test_ds, batch_size= 2*batch_size,
+                        shuffle=False, collate_fn= my_models.collate_fn_rnn)  
+    params_model={
+        "num_classes": num_glosses_to_test,
+        "dr_rate": 0.1,
+        "pretrained" : True,
+        "rnn_num_layers": 1,
+        "rnn_hidden_size": 100,}
+    model = my_models.Resnt18Rnn(params_model).float()
 
     opt = optim.Adam(model.parameters(), lr=1e-2)
     params_train={
@@ -86,9 +78,32 @@ def main():
         "val_dl": test_dl,
         "sanity_check": True,
         "lr_scheduler": ReduceLROnPlateau(opt, mode='min',factor=0.5, patience=5,verbose=1),
-        "path2weights": f"{models_dir}weights_"+model_type+".pt",
+        "path2weights": f"{models_dir}weights_resnet_rnn.pt",
+        "model_type": "rnn",
         }
     # model,loss_hist,metric_hist = my_models.train_val(model,params_train)
+
+    ### DGCN parameter initialization, data preparation    
+    X_train, y_train = training.generate_split_data('train', gloss_label_map, holistic=holistic, kp=False)
+    X_test, y_test = training.generate_split_data('test', gloss_label_map, holistic=holistic, kp=False)
+    X_val, y_val = training.generate_split_data('val', gloss_label_map, holistic=holistic, kp=False)    
+
+    X_train = torch.tensor(X_train)
+    y_train = torch.tensor(y_train)
+
+    X_val = torch.tensor(X_val)
+    y_val = torch.tensor(y_val)
+
+    train_dl = DataLoader(data.TensorDataset(X_train, y_train), shuffle=False, batch_size=4)
+    val_dl = DataLoader(data.TensorDataset(X_val, y_val), shuffle=False, batch_size=4)
+
+    params_train["model_type"] = "dgcn"
+    params_train["train_dl"] = train_dl
+    params_train["val_dl"] = val_dl
+
+    num_features = X_train[0].shape[1]
+    model = dgcn_training.DenseGCN(num_features, num_glosses_to_test).float()
+    model,loss_hist,metric_hist = my_models.train_val(model,params_train) 
 
 if __name__=="__main__":
     main()

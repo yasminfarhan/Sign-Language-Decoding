@@ -47,15 +47,6 @@ class Identity(nn.Module):
     def forward(self, x):
         return x    
 
-def collate_fn_r3d_18(batch):
-    imgs_batch, label_batch = list(zip(*batch))
-    imgs_batch = [imgs for imgs in imgs_batch if len(imgs)>0]
-    label_batch = [torch.tensor(l).clone() for l, imgs in zip(label_batch, imgs_batch) if len(imgs)>0]
-    imgs_tensor = torch.stack(imgs_batch)
-    imgs_tensor = torch.transpose(imgs_tensor, 2, 1)
-    labels_tensor = torch.stack(label_batch)
-    return imgs_tensor,labels_tensor
-
 def collate_fn_rnn(batch):
     imgs_batch, label_batch = list(zip(*batch))
     imgs_batch = [imgs for imgs in imgs_batch if len(imgs)>0]
@@ -97,14 +88,20 @@ def metrics_batch(output, target):
     corrects=pred.eq(target.view_as(pred)).sum().item()
     return corrects
 
-def loss_epoch(model,loss_func,dataset_dl,sanity_check=False,opt=None):
+def loss_epoch(model,loss_func,dataset_dl,sanity_check=False,opt=None,model_type=None):
     running_loss=0.0
     running_metric=0.0
     len_data = len(dataset_dl.dataset)
     for xb, yb in tqdm_notebook(dataset_dl):
         # xb=xb.to(device)
         # yb=yb.to(device)
-        output=model(xb)
+
+        if model_type == "rnn":
+            output=model(xb)
+        else:
+            #fully connected adjacency matrix w/diagonals set to 0 for later self-loop addition
+            adj = torch.ones(xb.shape[1],xb.shape[1]).fill_diagonal_(0)
+            output=model(xb.float(), adj)
         loss_b,metric_b=loss_batch(loss_func, output, yb, opt)
         running_loss+=loss_b
         
@@ -136,6 +133,7 @@ def train_val(model, params):
     sanity_check=params["sanity_check"]
     lr_scheduler=params["lr_scheduler"]
     path2weights=params["path2weights"]
+    model_type=params["model_type"]
     
     loss_history={
         "train": [],
@@ -154,7 +152,7 @@ def train_val(model, params):
         current_lr=get_lr(opt)
         print('Epoch {}/{}, current lr={}'.format(epoch, num_epochs - 1, current_lr))
         model.train()
-        train_loss, train_metric=loss_epoch(model,loss_func,train_dl,sanity_check,opt)
+        train_loss, train_metric=loss_epoch(model,loss_func,train_dl,sanity_check,opt,model_type)
         loss_history["train"].append(train_loss)
         metric_history["train"].append(train_metric)
         model.eval()
