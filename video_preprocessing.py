@@ -14,6 +14,7 @@ import glob
 from torch.utils.data import Dataset, DataLoader, Subset
 import torchvision.transforms as transforms
 import torch.nn.functional as F
+from collections import defaultdict
 
 data_dir = './data/' #define data directory
 video_dir = './data/videos/' #define videos directory
@@ -137,27 +138,25 @@ def extract_video_frames(video_id_lst, skeletonize=False):
 
             while frame_number < totalFrames:
                 cap.set(cv.CAP_PROP_POS_FRAMES, frame_number)
-                res, frame = cap.read()
+                ret, frame = cap.read()
 
-                if res:
-                    if skeletonize:
-                        # Set grayscale colorspace for the frame. 
-                        gray = cv.cvtColor(frame, cv.COLOR_BGR2GRAY)
-
-                        # Perform skeletonization
-                        frame = cv.ximgproc.thinning(gray, None, cv.ximgproc.THINNING_ZHANGSUEN)
-
-                    # Store the skeletonized image to a file in subfolder for video ID
-                    frame_path = f'{subfolder_path}/{video_id}_frame_{frame_number}.jpg'
-
-                    # cv.imwrite(frame_path, skeleton)
-                    cv.imwrite(frame_path, frame)
-
-                    frame_number += 1
-
-                else:
-                    print(f"ERROR: extract_video_frames() - failed to retrieve frame {frame_number} from video with ID {video_id}")
+                if not ret:
                     break
+
+                if skeletonize:
+                    # Set grayscale colorspace for the frame. 
+                    gray = cv.cvtColor(frame, cv.COLOR_BGR2GRAY)
+
+                    # Perform skeletonization
+                    frame = cv.ximgproc.thinning(gray, None, cv.ximgproc.THINNING_ZHANGSUEN)
+
+                # Store the skeletonized image to a file in subfolder for video ID
+                frame_path = f'{subfolder_path}/{video_id}_frame_{frame_number}.jpg'
+
+                # cv.imwrite(frame_path, skeleton)
+                cv.imwrite(frame_path, frame)
+
+                frame_number += 1
 
             # When everything done, release the capture
             cap.release()
@@ -173,14 +172,42 @@ def get_gloss_inst_df():
         gloss_inst_df.to_pickle("gloss_inst_df.pkl")
         return gloss_inst_df
 
+# retrieve the video ids / splits for all glosses we're testing
+def get_split_info_dict(gloss_lst, gloss_df):
+
+    # create a defaultdict that initializes new inner dictionaries to an empty list
+    attr_map = lambda: defaultdict(list)
+    split_map = defaultdict(attr_map)
+
+    gloss_groups = gloss_df.groupby('gloss') #group rows in json df with all instances by gloss    
+
+    for gloss, gloss_df in gloss_groups:
+        if gloss in gloss_lst:
+            split_groups = gloss_df.groupby('split') #group rows in the df for this gloss by type of split; not all glosses have every type
+
+            for split, split_df in split_groups: 
+                split_df = split_df.reset_index(drop=True)    
+
+                for i in range(split_df.shape[0]):
+                    video_id = split_df.loc[i, 'video_id']
+                    split_map[split]["labels"].append(gloss)
+                    split_map[split]["video_ids"].append(video_id)
+    return split_map
+
 def main():
+    random.seed(10)
     print("In video_preprocessing main()")
 
-    num_glosses_to_test = 20 #the number of glosses/classes we'll be testing - there are a total of 2000
+    # determining the glosses we're testing, and making sure we have the right info about them
+    num_glosses_to_test = 5 #the number of glosses/classes we'll be testing - there are a total of 2000
     gloss_inst_df = get_gloss_inst_df()
     glosses_to_test = random.sample(gloss_inst_df['gloss'].unique().tolist(), num_glosses_to_test)
+    gloss_label_map = {label:num for num, label in enumerate(glosses_to_test)}
+    split_dict = get_split_info_dict(glosses_to_test, gloss_inst_df)
 
-    print(glosses_to_test)
+    # generating the input to our models from the relevant videos - keypoints & dataframes
+    extract_video_frames(split_dict["train"]["video_ids"])
+    mp_keypoint_extraction.save_vids_keypoints(gloss_inst_df, glosses_to_test)
 
     h, w =224, 224
     mean = [0.485, 0.456, 0.406]
@@ -194,14 +221,6 @@ def main():
                 transforms.Normalize(mean, std),
                 ]) 
     
-    # extract_video_frames(ids)
-    # mp_keypoint_extraction.save_vids_keypoints(gloss_inst_df, num_glosses=num_glosses_to_test)
-
-    # testing VideoDataset class
-    ids = ['00335','00336']
-    glosses_to_test = ['cat', 'dog']
-    gloss_label_map = {label:num for num, label in enumerate(glosses_to_test)}
-    train_ds = VideoDataset(ids=ids, labels=['cat', 'dog'], transform=train_transformer, label_map=gloss_label_map)
-
+    train_ds = VideoDataset(ids=split_dict["train"]["video_ids"], labels=split_dict["train"]["labels"], transform=train_transformer, label_map=gloss_label_map)
 if __name__=="__main__":
     main()
