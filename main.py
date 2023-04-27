@@ -16,6 +16,7 @@ import matplotlib.pylab as plt
 from torch import optim
 from torch.optim.lr_scheduler import CosineAnnealingLR, ReduceLROnPlateau
 import torch.utils.data as data
+# from torch_lr_finder import LRFinder, TrainDataLoaderIter, ValDataLoaderIter
 
 # my files
 import video_preprocessing
@@ -81,7 +82,7 @@ def main():
         "path2weights": f"{models_dir}weights_resnet_rnn.pt",
         "model_type": "rnn",
         }
-    # model,loss_hist,metric_hist = my_models.train_val(model,params_train)
+    model,loss_hist,metric_hist = my_models.train_val(model,params_train)
 
     ### DGCN parameter initialization, data preparation    
     X_train, y_train = training.generate_split_data('train', gloss_label_map, holistic=holistic, kp=False)
@@ -105,5 +106,19 @@ def main():
     model = dgcn_training.DenseGCN(num_features, num_glosses_to_test).float()
     model,loss_hist,metric_hist = my_models.train_val(model,params_train) 
 
+    ## Meta model - i.e. Stacked ensemble with DGCN and ResNetCNN
+    train_ds = video_preprocessing.VideoDataset(ids=split_dict["train"]["video_ids"], labels=split_dict["train"]["labels"], transform=my_models.get_transformer("train"), label_map=gloss_label_map, model="meta", split="train")
+    test_ds = video_preprocessing.VideoDataset(ids=split_dict["val"]["video_ids"], labels=split_dict["val"]["labels"], transform=my_models.get_transformer("test"), label_map=gloss_label_map, model="meta", split="val")
+
+    train_dl = DataLoader(train_ds, shuffle=False, batch_size=4)
+    val_dl = DataLoader(test_ds, shuffle=False, batch_size=4)
+
+    model = my_models.MetaModel(num_features, num_glosses_to_test, params_model).float()
+
+    params_train["model_type"] = "meta"
+    params_train["train_dl"] = train_dl
+    params_train["val_dl"] = val_dl
+
+    model,loss_hist,metric_hist = my_models.train_val(model,params_train) 
 if __name__=="__main__":
     main()

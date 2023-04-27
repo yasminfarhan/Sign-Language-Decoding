@@ -12,7 +12,21 @@ import copy
 from tqdm import tqdm_notebook
 from torchvision.transforms.functional import to_pil_image
 import matplotlib.pylab as plt
+import dgcn_training as dgcn
 
+class MetaModel(nn.Module):
+  def __init__(self, num_features, num_classes, params_model):
+    super(MetaModel, self).__init__()
+    self.model1 = dgcn.DenseGCN(num_features, num_classes).float() #expects batch,nodes,ft
+    self.model2 = Resnt18Rnn(params_model).float()
+    self.params_model = params_model
+
+  def forward(self, x1, a1, x2):
+    out1 = self.model1(x1,a1)
+    out2 = self.model2(x2)
+    return (out1 + out2)/2
+
+# TODO - link-to-source
 class Resnt18Rnn(nn.Module):
     def __init__(self, params_model):
         super(Resnt18Rnn, self).__init__()
@@ -78,7 +92,6 @@ def get_transformer(split):
     else:
         return test_transformer
     
-############## Borrowed functions - TODO - FOR NOW
 def get_lr(opt):
     for param_group in opt.param_groups:
         return param_group['lr']
@@ -88,20 +101,19 @@ def metrics_batch(output, target):
     corrects=pred.eq(target.view_as(pred)).sum().item()
     return corrects
 
-def loss_epoch(model,loss_func,dataset_dl,sanity_check=False,opt=None,model_type=None):
+def loss_epoch_rnn(model,loss_func,dataset_dl,sanity_check=False,opt=None,model_type=None):
     running_loss=0.0
     running_metric=0.0
     len_data = len(dataset_dl.dataset)
+
     for xb, yb in tqdm_notebook(dataset_dl):
+
         # xb=xb.to(device)
         # yb=yb.to(device)
 
-        if model_type == "rnn":
-            output=model(xb)
-        else:
-            #fully connected adjacency matrix w/diagonals set to 0 for later self-loop addition
-            adj = torch.ones(xb.shape[1],xb.shape[1]).fill_diagonal_(0)
-            output=model(xb.float(), adj)
+        output=model(xb)
+
+        print("model:", model_type)
         loss_b,metric_b=loss_batch(loss_func, output, yb, opt)
         running_loss+=loss_b
         
@@ -109,6 +121,63 @@ def loss_epoch(model,loss_func,dataset_dl,sanity_check=False,opt=None,model_type
             running_metric+=metric_b
         if sanity_check is True:
             break
+    loss=running_loss/float(len_data)
+    metric=running_metric/float(len_data)
+    return loss, metric
+
+
+def loss_epoch_dgcn(model,loss_func,dataset_dl,sanity_check=False,opt=None,model_type=None):
+    running_loss=0.0
+    running_metric=0.0
+    len_data = len(dataset_dl.dataset)
+
+    print(model_type)
+
+    for xb, yb in tqdm_notebook(dataset_dl):
+
+        # xb=xb.to(device)
+        # yb=yb.to(device)
+
+        #fully connected adjacency matrix w/diagonals set to 0 for later self-loop addition
+        adj = torch.ones(xb.shape[1],xb.shape[1]).fill_diagonal_(0)
+        output=model(xb.float(), adj)
+
+        print("model:", model_type)
+        loss_b,metric_b=loss_batch(loss_func, output, yb, opt)
+        running_loss+=loss_b
+        
+        if metric_b is not None:
+            running_metric+=metric_b
+        if sanity_check is True:
+            break
+    loss=running_loss/float(len_data)
+    metric=running_metric/float(len_data)
+    return loss, metric
+
+
+def loss_epoch_meta(model,loss_func,dataset_dl,sanity_check=False,opt=None,model_type=None):
+    running_loss=0.0
+    running_metric=0.0
+    len_data = len(dataset_dl.dataset)
+
+    print(model_type)
+
+    for x_dgcn, x_rnn, yb in tqdm_notebook(dataset_dl):
+        # xb=xb.to(device)
+        # yb=yb.to(device)
+
+        #fully connected adjacency matrix w/diagonals set to 0 for later self-loop addition
+        adj = torch.ones(x_dgcn.shape[1],x_dgcn.shape[1]).fill_diagonal_(0)
+        output=model(x_dgcn.float(), adj, x_rnn.float())     
+
+        loss_b,metric_b=loss_batch(loss_func, output, yb, opt)
+        running_loss+=loss_b
+        
+        if metric_b is not None:
+            running_metric+=metric_b
+        if sanity_check is True:
+            break
+
     loss=running_loss/float(len_data)
     metric=running_metric/float(len_data)
     return loss, metric
@@ -152,12 +221,23 @@ def train_val(model, params):
         current_lr=get_lr(opt)
         print('Epoch {}/{}, current lr={}'.format(epoch, num_epochs - 1, current_lr))
         model.train()
-        train_loss, train_metric=loss_epoch(model,loss_func,train_dl,sanity_check,opt,model_type)
+        if(model_type == "rnn"):
+            train_loss, train_metric=loss_epoch_rnn(model,loss_func,train_dl,sanity_check,opt,model_type)
+        elif(model_type == "dgcn"):
+            train_loss, train_metric=loss_epoch_dgcn(model,loss_func,train_dl,sanity_check,opt,model_type)
+        elif(model_type == "meta"):
+            train_loss, train_metric=loss_epoch_meta(model,loss_func,train_dl,sanity_check,opt,model_type)
+
         loss_history["train"].append(train_loss)
         metric_history["train"].append(train_metric)
         model.eval()
         with torch.no_grad(): #only call no grad for validation - because we don't care abt backprop
-            val_loss, val_metric=loss_epoch(model,loss_func,val_dl,sanity_check)
+            if(model_type == "rnn"):
+                val_loss, val_metric=loss_epoch_rnn(model,loss_func,val_dl,sanity_check)
+            elif(model_type == "dgcn"):
+                val_loss, val_metric=loss_epoch_dgcn(model,loss_func,val_dl,sanity_check)
+            elif(model_type == "meta"):
+                val_loss, val_metric=loss_epoch_meta(model,loss_func,val_dl,sanity_check)
         if val_loss < best_loss:
             best_loss = val_loss
             best_model_wts = copy.deepcopy(model.state_dict())

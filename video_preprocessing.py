@@ -21,21 +21,25 @@ video_dir = './data/videos/' #define videos directory
 video_frames_dir = './data/videos_frames/'
 skeletonized_image_dir = './data/skeletonized_image_dir/' #define skeletonized videos directory
 wlas_df = pd.read_json(data_dir + 'WLASL_v0.3.json') #returns df with cols ['gloss', 'instances'] - i.e. all json instances for a gloss, e.g. 'book'
+holistic = True
 
 # a class that creates a Video dataset by reading video frames, applying transforms, 
-# and returning X, y in appropriate shape/format for our PyTorch model
+# and returning X, y (or more, if also reading in keypoints) in appropriate shape/format for our PyTorch model
 class VideoDataset(Dataset):
-    def __init__(self, ids, labels, transform, label_map, frames_to_sample=20):      
+    def __init__(self, ids, labels, transform, label_map, model=None, split=None, frames_to_sample=20):      
         self.transform = transform
         self.ids = ids
         self.labels = labels
         self.label_map = label_map
         self.frames_to_sample = frames_to_sample
+        self.split = split
+        self.model = model
     def __len__(self):
         return len(self.ids)
     def __getitem__(self, idx):
         path2imgs=sorted(glob.glob(video_frames_dir+self.ids[idx]+"/*.jpg"), key=lambda x: int(x.split('_')[-1].split('.')[-2]))
         path2imgs = random.sample(path2imgs, self.frames_to_sample)
+        
         label = self.label_map[self.labels[idx]]
         frames = []
         for p2i in path2imgs:
@@ -47,8 +51,16 @@ class VideoDataset(Dataset):
             frames_tr.append(frame)
         if len(frames_tr)>0:
             frames_tr = torch.stack(frames_tr)
-        # return frames_tr, F.one_hot(torch.tensor(label), len(self.label_map.keys()))
-        return frames_tr, torch.tensor(label)
+
+        if self.model == "meta":
+            mp_dir = 'holistic' if holistic else 'pose'
+            path2keypoints = f'{data_dir}gcn_input/{mp_dir}/{self.split}/node_ft_mats/{self.ids[idx]}_{self.labels[idx]}.npy'
+            node_ft_tr = torch.tensor(np.load(path2keypoints))
+
+            return node_ft_tr, frames_tr, torch.tensor(label)
+        else:
+            # return frames_tr, F.one_hot(torch.tensor(label), len(self.label_map.keys()))
+            return frames_tr, torch.tensor(label)
     
 # function to return list of included video ids according to what's been downloaded
 # for a particular gloss' instance e.g. return all video ids for 'book' gloss
