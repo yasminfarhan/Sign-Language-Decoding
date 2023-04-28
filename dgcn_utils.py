@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
-from mp_keypoint_extraction import extract_vid_keypoints
-from video_preprocessing import get_json_as_df
+from kp_utils import extract_vid_keypoints
+from data_utils import get_json_as_df
 import os
 
 gcn_input_dir = './data/gcn_input/'  # define gcn input directory
@@ -69,8 +69,3 @@ def create_adjacency_matrix(keypoint_features):
             adjacency_matrix[i, j] = 1 / (1 + distance)
 
     return adjacency_matrix
-
-def main():
-    pass
-if __name__=="__main__":
-    main()

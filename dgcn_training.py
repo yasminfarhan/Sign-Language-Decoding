@@ -10,7 +10,7 @@ from scipy.linalg import fractional_matrix_power
 import scipy.sparse as sp
 from torch_geometric.nn.dense import DenseGCNConv
 import torch.utils.data as data
-import gcn_input_gen
+import dgcn_utils
 import pandas as pd
 from training import generate_split_data
 

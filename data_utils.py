@@ -7,7 +7,7 @@ import cv2 as cv
 from skimage import morphology
 from matplotlib import pyplot as plt
 import random
-import mp_keypoint_extraction
+import kp_utils
 import torch
 from PIL import Image
 import glob
@@ -132,7 +132,39 @@ def save_frame_jpg(video_id):
     else:
         print("ERROR: save_frame_jpg() - failed to retrieve frame from video with ID {}".format(video_id))
 
+# collate function for resnet model
+def collate_fn_rnn(batch):
+    imgs_batch, label_batch = list(zip(*batch))
+    imgs_batch = [imgs for imgs in imgs_batch if len(imgs)>0]
+    label_batch = [torch.tensor(l).clone() for l, imgs in zip(label_batch, imgs_batch) if len(imgs)>0]
+    imgs_tensor = torch.stack(imgs_batch)
+    labels_tensor = torch.stack(label_batch)
+    return imgs_tensor,labels_tensor
 
+# define train, test transforms
+def get_transformer(split):
+    h, w =224, 224
+    mean = [0.485, 0.456, 0.406]
+    std = [0.229, 0.224, 0.225]
+
+    train_transformer = transforms.Compose([
+                transforms.Resize((h,w)),
+                transforms.RandomHorizontalFlip(p=0.5),  
+                transforms.RandomAffine(degrees=0, translate=(0.1,0.1)),    
+                transforms.ToTensor(),
+                transforms.Normalize(mean, std),
+                ]) 
+    test_transformer = transforms.Compose([
+                transforms.Resize((h,w)),
+                transforms.ToTensor(),
+                transforms.Normalize(mean, std),
+                ]) 
+    
+    if split == "train":
+        return train_transformer
+    else:
+        return test_transformer
+    
 # function which extracts all frames of a video, and saves to subdir with corresponding subfolders for video ID
 def extract_video_frames(video_id_lst, skeletonize=False):
     for video_id in video_id_lst:
@@ -206,8 +238,3 @@ def get_split_info_dict(gloss_lst, gloss_df):
                     split_map[split]["labels"].append(gloss)
                     split_map[split]["video_ids"].append(video_id)
     return split_map
-
-def main():
-    pass
-if __name__=="__main__":
-    main()
