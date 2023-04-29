@@ -27,3 +27,6 @@ This will start the entire pipeline for the WLASL project, including data prepro
 - Yasmin Farhan
 - Shankh Suri
 
+## 🔗 Links
+
+[Kaggle Videos used in our project](https://www.kaggle.com/datasets/risangbaskoro/wlasl-processed?select=videos/)
