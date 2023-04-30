@@ -11,6 +11,8 @@ The Word-Level American Sign Language Recognition dataset, published in 2018, is
 
 ## Installation
 
+This project was developed using the Anaconda package manager. Instructions for installing Anaconda/Miniconda can be found [here](https://docs.anaconda.com/free/anaconda/install/index.html).
+
 Clone this repository and install the required packages using the following commands:
 
 ```bash
