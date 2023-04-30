@@ -12,6 +12,9 @@ mp_pose = mp.solutions.pose
 mp_holistic = mp.solutions.holistic
 mp_drawing = mp.solutions.drawing_utils
 
+### MediaPipe holistic was implemented by following this tutorial 
+# https://github.com/nicknochnack/Full-Body-Estimation-using-Media-Pipe-Holistic/blob/main/Media%20Pipe%20Holistic%20Tutorial.ipynb
+
 ## returns image, and unprocessed keypoint results for some frame in the video
 def mediapipe_detection(image, model):
     image = cv.cvtColor(image, cv.COLOR_BGR2RGB) # COLOR CONVERSION BGR 2 RGB

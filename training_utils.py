@@ -31,10 +31,6 @@ def loss_epoch_rnn(model,loss_func,dataset_dl,sanity_check=False,opt=None,model_
     len_data = len(dataset_dl.dataset)
 
     for xb, yb in tqdm_notebook(dataset_dl):
-
-        # xb=xb.to(device)
-        # yb=yb.to(device)
-
         output=model(xb)
 
         print("model:", model_type)
@@ -58,9 +54,6 @@ def loss_epoch_dgcn(model,loss_func,dataset_dl,sanity_check=False,opt=None,model
     print(model_type)
 
     for xb, yb in tqdm_notebook(dataset_dl):
-
-        # xb=xb.to(device)
-        # yb=yb.to(device)
 
         #fully connected adjacency matrix w/diagonals set to 0 for later self-loop addition
         adj = torch.ones(xb.shape[1],xb.shape[1]).fill_diagonal_(0)
@@ -87,8 +80,6 @@ def loss_epoch_meta(model,loss_func,dataset_dl,sanity_check=False,opt=None,model
     print(model_type)
 
     for x_dgcn, x_rnn, yb in tqdm_notebook(dataset_dl):
-        # xb=xb.to(device)
-        # yb=yb.to(device)
 
         #fully connected adjacency matrix w/diagonals set to 0 for later self-loop addition
         adj = torch.ones(x_dgcn.shape[1],x_dgcn.shape[1]).fill_diagonal_(0)
@@ -176,7 +167,6 @@ def train_val(model, params):
         #     print("Loading best model weights!")
         #     model.load_state_dict(best_model_wts)
         
-
         print("train loss: %.6f, dev loss: %.6f, accuracy: %.2f" %(train_loss,val_loss,100*val_metric))
         print("-"*10) 
     model.load_state_dict(best_model_wts)
