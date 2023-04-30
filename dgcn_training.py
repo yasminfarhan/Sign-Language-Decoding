@@ -8,39 +8,11 @@ from torch.utils.data import DataLoader
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
 from scipy.linalg import fractional_matrix_power
 import scipy.sparse as sp
-from torch_geometric.nn.dense import DenseGCNConv
 import torch.utils.data as data
 import dgcn_utils
 import pandas as pd
 from training import generate_split_data
-
-class DenseGCN(torch.nn.Module):
-    def __init__(self, num_features, num_classes, num_hidden=8):
-        super(DenseGCN, self).__init__()
-        self.conv1 = DenseGCNConv(num_features, num_hidden)
-        self.conv2 = DenseGCNConv(num_hidden, num_hidden)
-        self.conv3 = DenseGCNConv(num_hidden, num_hidden)
-        self.fc = torch.nn.Linear(num_hidden, num_classes)
-
-    def forward(self, x, a):
-        x = self.conv1(x, a)
-        x = F.tanh(x)
-
-        x = F.dropout(x, p=0.5, training=self.training)
-
-        x = self.conv2(x, a)
-        x = F.tanh(x)
-
-        x = F.dropout(x, p=0.5, training=self.training)
-
-        x = self.conv3(x, a)
-        x = F.tanh(x)
-        x = F.dropout(x, p=0.5, training=self.training)
-
-        x = torch.mean(x, dim=1)
-
-        x = self.fc(x)
-        return x
+import models as my_models
 
 
 def load_data_dense(data_dir, split, gloss_label_map):
@@ -123,7 +95,7 @@ def main():
     y_val_ohe = F.one_hot(torch.tensor(y_val), num_classes)
 
     num_features = X_train[0].shape[1]
-    model = DenseGCN(num_features, num_classes).float()
+    model = my_models.DenseGCN(num_features, num_classes).float()
     train_model(model, data.TensorDataset(torch.tensor(X_train), y_train_ohe), data.TensorDataset(torch.tensor(X_val), y_val_ohe))
 
 if __name__ == "__main__":

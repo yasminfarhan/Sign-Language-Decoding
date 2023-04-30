@@ -30,20 +30,16 @@ import models as my_models
 models_dir = "./models/"
 os.makedirs(models_dir, exist_ok=True)
 
-def main():
-    random.seed(15)
-    holistic = True
-
-    # determining the glosses we're testing, and making sure we have the right info about them
-    num_glosses_to_test = 10 #the number of glosses/classes we'll be testing - there are a total of 2000
-    gloss_inst_df = data_utils.get_gloss_inst_df()
-    glosses_to_test = random.sample(gloss_inst_df['gloss'].unique().tolist(), num_glosses_to_test)
-    gloss_label_map = {label:num for num, label in enumerate(glosses_to_test)}
+# kicks off generation of input data to the DGCN, ResNet models and returns an enumerated
+# representation of the glosses and a split_dict that allows for labels, video_ids per 
+# training split to be extracted by the VideoDataset object with ease
+def gen_input_data(glosses_to_test, gloss_inst_df):
     split_dict = data_utils.get_split_info_dict(glosses_to_test, gloss_inst_df)
 
     np.save("glosses_to_test.npy", np.array(glosses_to_test))
     
     print(f"glosses: {glosses_to_test}")
+
     # generating the input to our models from the relevant videos - keypoints & dataframes
     data_utils.extract_video_frames(split_dict["train"]["video_ids"])
     data_utils.extract_video_frames(split_dict["test"]["video_ids"])
@@ -51,6 +47,21 @@ def main():
     dgcn_utils.save_vids_gcn_input(gloss_inst_df, glosses_to_test)
 
     kp_utils.save_vids_keypoints(gloss_inst_df, glosses_to_test)
+
+    gloss_label_map = {label:num for num, label in enumerate(glosses_to_test)}
+
+    return split_dict, gloss_label_map
+
+def main():
+    random.seed(15)
+    holistic = True
+
+    # determining the glosses we're testing, and making sure we have the right info about them
+    num_glosses_to_test = 1 #the number of glosses/classes we'll be testing - there are a total of 2000
+    gloss_inst_df = data_utils.get_gloss_inst_df()
+    gloss_counts = gloss_inst_df.groupby('split').get_group('train')['gloss'].value_counts()
+    glosses_to_test = gloss_counts[:num_glosses_to_test].index.tolist() #get the glosses with the most training examples
+    split_dict, gloss_label_map = gen_input_data(glosses_to_test, gloss_inst_df)
 
     ### ResNetRNN parameter initialization, data preparation
     # training resnet model
@@ -61,7 +72,7 @@ def main():
     train_dl = DataLoader(train_ds, batch_size= batch_size,
                         shuffle=True, collate_fn= data_utils.collate_fn_rnn)
     test_dl = DataLoader(test_ds, batch_size= 2*batch_size,
-                        shuffle=False, collate_fn= data_utils.collate_fn_rnn)  
+                        shuffle=True, collate_fn= data_utils.collate_fn_rnn)  
     params_model={
         "num_classes": num_glosses_to_test,
         "dr_rate": 0.1,
@@ -72,7 +83,7 @@ def main():
 
     opt = optim.Adam(model.parameters(), lr=1e-2)
     params_train={
-        "num_epochs": 20,
+        "num_epochs": 10,
         "optimizer": opt,
         "loss_func": nn.functional.cross_entropy,
         "train_dl": train_dl,
@@ -95,8 +106,8 @@ def main():
     X_val = torch.tensor(X_val)
     y_val = torch.tensor(y_val)
 
-    train_dl = DataLoader(data.TensorDataset(X_train, y_train), shuffle=False, batch_size=4)
-    val_dl = DataLoader(data.TensorDataset(X_val, y_val), shuffle=False, batch_size=4)
+    train_dl = DataLoader(data.TensorDataset(X_train, y_train), shuffle=True, batch_size=4)
+    val_dl = DataLoader(data.TensorDataset(X_val, y_val), shuffle=True, batch_size=4)
 
     params_train["model_type"] = "dgcn"
     params_train["train_dl"] = train_dl
@@ -110,38 +121,38 @@ def main():
     train_ds = data_utils.VideoDataset(ids=split_dict["train"]["video_ids"], labels=split_dict["train"]["labels"], transform=data_utils.get_transformer("train"), label_map=gloss_label_map, model="meta", split="train")
     test_ds = data_utils.VideoDataset(ids=split_dict["val"]["video_ids"], labels=split_dict["val"]["labels"], transform=data_utils.get_transformer("test"), label_map=gloss_label_map, model="meta", split="val")
 
-    train_dl = DataLoader(train_ds, shuffle=False, batch_size=4)
-    val_dl = DataLoader(test_ds, shuffle=False, batch_size=4)
+    train_dl = DataLoader(train_ds, shuffle=True, batch_size=4)
+    val_dl = DataLoader(test_ds, shuffle=True, batch_size=4)
 
     params_train["model_type"] = "meta"
     params_train["train_dl"] = train_dl
     params_train["val_dl"] = val_dl
 
-    lr_schedulers = []
-    epochs = [5, 10, 15, 20]
-    lr = [1e-1, 1e-2, 1e-3, 1e-4]
+    epochs = [10, 50, 100, 200]
+    lrates = [1e-1, 1e-2, 1e-3, 1e-4]
     batch_size = [4, 8, 12]
+    num_g_to_test = [5, 10, 15, 20]
 
-    epochs = [50]
-    lr = [1e-2]
-    batch_size = [20]
-
+    ### Hyperparameter tuning for Meta Model
     num_iters = 1
     for i in range(num_iters):
         bs = random.choice(batch_size)
-        lr = random.choice(lr)
+        lr = random.choice(lrates)
         ep = random.choice(epochs)
-        # sch = random.choice(, 1)
+        num_g = random.choice(num_g_to_test)
 
-        model = my_models.MetaModel(num_features, num_glosses_to_test, params_model).float()
+        print(f"TESTING: meta, batch size: {bs} LR: {lr} Epochs: {ep} top glosses: {num_g}")
 
-        print(f"Training meta model with lr {lr}, epochs {ep}, batch size {bs}")
+        glosses = gloss_counts[:num_g].index.tolist()
+        split_dict, gloss_label_map = gen_input_data(glosses, gloss_inst_df)
+
+        model = my_models.MetaModel(num_features, num_g, params_model).float()
 
         train_ds_n = data_utils.VideoDataset(ids=split_dict["train"]["video_ids"], labels=split_dict["train"]["labels"], transform=data_utils.get_transformer("train"), label_map=gloss_label_map, model="meta", split="train")
         test_ds_n = data_utils.VideoDataset(ids=split_dict["val"]["video_ids"], labels=split_dict["val"]["labels"], transform=data_utils.get_transformer("test"), label_map=gloss_label_map, model="meta", split="val")
 
-        train_dl = DataLoader(train_ds_n, shuffle=False, batch_size=bs)
-        val_dl = DataLoader(test_ds_n, shuffle=False, batch_size=bs)
+        train_dl = DataLoader(train_ds_n, shuffle=True, batch_size=bs)
+        val_dl = DataLoader(test_ds_n, shuffle=True, batch_size=bs)
 
         opt = optim.Adam(model.parameters(), lr=lr)
         sch = random.choice([ReduceLROnPlateau(opt, mode='min',factor=0.1, patience=5,verbose=1)])
@@ -151,11 +162,24 @@ def main():
 
         model,loss_hist,metric_hist = training_utils.train_val(model,params_train)
 
-        np.save("meta_loss.npy", loss_hist)
-        np.save("meta_acc.npy", loss_hist)
+        np.save(f"meta_loss_{bs}_{lr}_{ep}_{num_g}.npy", loss_hist)
+        np.save(f"meta_acc_{bs}_{lr}_{ep}_{num_g}.npy", metric_hist)
+
         # print(loss_hist)
-        # plt.plot(loss_hist["train"]) 
-        # plt.plot(loss_hist["val"])
-        # plt.show()
+        plt.plot(loss_hist["train"]) 
+        plt.plot(loss_hist["val"])
+        plt.title("Training, Validation Loss for best performing hyperparameters")
+        plt.xlabel("Epoch")
+        plt.ylabel("Cross Entropy Loss")
+        plt.show()
+
+        plt.plot(metric_hist["train"]) 
+        plt.plot(metric_hist["val"])
+        plt.title("Training, Validation Accuracy for best performing hyperparameters")
+        plt.xlabel("Epoch")
+        plt.ylabel("Cross Entropy Loss")
+        plt.show()
+
+        print(model(split_dict["test"]["video_ids"]))
 if __name__=="__main__":
     main()

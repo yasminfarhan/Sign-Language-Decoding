@@ -12,14 +12,13 @@ import copy
 from tqdm import tqdm_notebook
 from torchvision.transforms.functional import to_pil_image
 import matplotlib.pylab as plt
-import dgcn_training as dgcn
 from torch_geometric.nn.dense import DenseGCNConv
 import torch.nn.functional as F
 
 class MetaModel(nn.Module):
   def __init__(self, num_features, num_classes, params_model):
     super(MetaModel, self).__init__()
-    self.model1 = dgcn.DenseGCN(num_features, num_classes).float() #expects batch,nodes,ft
+    self.model1 = DenseGCN(num_features, num_classes).float() #expects batch,nodes,ft
     self.model2 = Resnt18Rnn(params_model).float()
     self.params_model = params_model
     self.lin = nn.Linear(num_classes, num_classes)
@@ -58,7 +57,7 @@ class DenseGCN(torch.nn.Module):
         x = self.fc(x)
         return x
 
-# TODO - link-to-source
+# Model definition from https://github.com/PacktPublishing/PyTorch-Computer-Vision-Cookbook/blob/master/Chapter10/Chapter10.ipynb
 class Resnt18Rnn(nn.Module):
     def __init__(self, params_model):
         super(Resnt18Rnn, self).__init__()

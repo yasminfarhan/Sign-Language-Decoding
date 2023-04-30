@@ -39,10 +39,10 @@ def save_vids_gcn_input(gloss_inst_df, glosses_to_test, holistic=True):
                         kp_ft = create_keypoint_features(vid_id)
                         np.save(ft_path, np.array(kp_ft))
                     
-                    if not(os.path.exists(adj_path)): #don't bother generating again
-                        # generate adjacency matrix from keypoint features
-                        kp_adj = create_adjacency_matrix(kp_ft)
-                        np.save(adj_path, np.array(kp_adj))
+                    # if not(os.path.exists(adj_path)): #don't bother generating again
+                    #     # generate adjacency matrix from keypoint features
+                    #     kp_adj = create_adjacency_matrix(kp_ft)
+                    #     np.save(adj_path, np.array(kp_adj))
 
 # extract the keypoint features, and reshape the mean keypoint values across frames to obtain matrix of size N, D
 # where N is the number of nodes and D is the number of input features (x, y, z, visibility)
