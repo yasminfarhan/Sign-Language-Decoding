@@ -16,7 +16,7 @@ This project was developed using the Anaconda package manager. Instructions for 
 Clone this repository and install the required packages using the following commands:
 
 ```bash
-git clone https://github.com/shankhsuri/Sign-Language-Decoding.git
+git clone https://github.com/yasminfarhan/Sign-Language-Decoding.git
 cd Sign-Language-Decoding
 conda create -n wlasl_env --file requirements.txt
 conda activate wlasl_env
